@@ -1,0 +1,26 @@
+services:
+  media:
+    build:
+      context: ..
+      dockerfile: service/Dockerfile
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      API_KEY: ${API_KEY:?Set a random API_KEY with at least 32 characters}
+      RAPIDAPI_PROXY_SECRET: ${RAPIDAPI_PROXY_SECRET:-}
+      MAX_DURATION_SECONDS: ${MAX_DURATION_SECONDS:-600}
+      MAX_FILESIZE: ${MAX_FILESIZE:-200M}
+    volumes:
+      - media-data:/app/data
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 2g
+    cpus: 2
+    pids_limit: 128
+    restart: unless-stopped
+    stop_grace_period: 30s
+volumes:
+  media-data:

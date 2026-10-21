@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YTDownloader Studio</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script>
+</head>
+<body>
+  <header><a class="brand" href="/">↓ YTDownloader <span>STUDIO</span></a><a href="/docs">Swagger API docs ↗</a></header>
+  <main>
+    <div class="eyebrow">MEDIA TOOLS / WEB EDITION</div>
+    <h1>Your next download.<br><span>One link away.</span></h1>
+    <p class="intro">Save a public video or extract its audio from supported platforms. Processing runs on the server, so your browser stays light.</p>
+    <div class="layout">
+      <section class="panel">
+        <form id="download-form">
+          <label for="key">Service access key</label>
+          <input id="key" type="password" autocomplete="off" placeholder="Enter your service API key" required>
+          <p class="hint">Use your direct service key here. It stays in this page’s memory.</p>
+          <label for="url">Video or audio link</label>
+          <input id="url" type="url" placeholder="https://www.youtube.com/watch?v=…" required>
+          <div class="options">
+            <div>
+              <label for="service-type">Service Type</label>
+              <select id="service-type">
+                <option value="extract" selected>Type 1: Instant Direct Links (CDN URLs)</option>
+                <option value="jobs">Type 2: Convert & Download (Merged MP4/MP3)</option>
+              </select>
+            </div>
+            <div id="format-wrapper" style="display: none;">
+              <label for="format">Output Format</label>
+              <select id="format">
+                <option value="mp4" selected>MP4 video</option>
+                <option value="mp3">MP3 audio</option>
+              </select>
+            </div>
+          </div>
+          <div class="options" id="quality-row" style="display: none;">
+            <div id="quality-wrapper">
+              <label for="quality">Video Quality</label>
+              <select id="quality">
+                <option value="360">360p</option>
+                <option value="480">480p</option>
+                <option value="720" selected>720p (HD)</option>
+                <option value="1080">1080p (Full HD)</option>
+                <option value="1440">1440p (2K)</option>
+                <option value="2160">2160p (4K)</option>
+              </select>
+            </div>
+            <div id="audio-quality-wrapper" style="display: none;">
+              <label for="audio-quality">Audio Bitrate</label>
+              <select id="audio-quality">
+                <option value="128k" selected>128 kbps (Standard)</option>
+                <option value="192k">192 kbps (High)</option>
+                <option value="256k">256 kbps (Very High)</option>
+                <option value="320k">320 kbps (Ultra)</option>
+              </select>
+            </div>
+          </div>
+          <button id="submit" type="submit">Process Request <span>↗</span></button>
+          <p class="hint" id="service-hint">Instant extraction: returns direct CDN stream URLs and all available qualities.</p>
+        </form>
+        <div id="message" role="status" aria-live="polite"></div>
+      </section>
+      <aside><div class="eyebrow">HOW IT WORKS</div><ol><li><strong>Choose your media</strong><p>Paste a link and choose video or audio.</p></li><li><strong>Let the server work</strong><p>We show the job’s status while it processes.</p></li><li><strong>Save your file</strong><p>Completed files remain available for one hour.</p></li></ol><p class="note">Download content you own or have permission to save.</p></aside>
+    </div>
+    <section class="results"><div class="section-title"><h2>Enabled platforms</h2><a href="/v1/platforms">View URL requirements ↗</a></div><div id="platforms" class="platforms"></div><p class="hint">Public single-media links only. Availability depends on the provider; private content, playlists and live streams are excluded. SoundCloud supports MP3 only.</p></section>
+    <section class="results"><div class="section-title"><h2>Your session</h2><span id="count">0 jobs</span></div><div id="jobs"><p class="empty">Your downloads will appear here.</p></div></section>
+  </main>
+  <footer>YTDownloader · NestJS API <span>MP4 / MP3 / SWAGGER</span></footer>
+</body>
+</html>

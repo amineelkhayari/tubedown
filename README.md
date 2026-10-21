@@ -2,6 +2,10 @@
 
 # ytDownloader
 
+## Web service and RapidAPI development
+
+A NestJS + TypeScript API and browser interface are available in [`service/`](service/README.md), with interactive Swagger documentation, nine enabled media platforms, a Windows media-tool installer, Docker deployment files, and isolated service tests. See that guide for setup and the remaining requirements before a paid launch. The Electron commands below continue to run the desktop application.
+
 [![Flathub](https://img.shields.io/flathub/downloads/io.github.aandrew_me.ytdn?label=Flathub%20downloads)](https://flathub.org/apps/details/me.aandrew.ytdownloader)
 [![GitHub downloads](https://img.shields.io/github/downloads/aandrew-me/ytdownloader/total?label=Github%20downloads)](https://github.com/aandrew-me/ytDownloader/releases)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/aandrew-me/ytdownloader?label=latest%20release)](https://github.com/aandrew-me/ytDownloader/releases/latest)

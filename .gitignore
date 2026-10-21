@@ -3,6 +3,7 @@ release
 test.js
 .*
 !/.gitignore
+!/.dockerignore
 todo.txt
 ffmpeg*
 ffmpeg.exe
@@ -13,3 +14,7 @@ node.exe
 node
 !ffmpeg.png
 test-results
+service/data/
+service/dist/
+service/tools/
+!service/.env.example
