@@ -813,6 +813,14 @@
           "url": {
             "type": "string",
             "example": "https://..."
+          },
+          "httpHeaders": {
+            "type": "object",
+            "description": "Required HTTP headers (User-Agent, Referer) for accessing protected CDN streams"
+          },
+          "cookies": {
+            "type": "string",
+            "description": "Required session cookies for accessing protected CDN streams"
           }
         },
         "required": [
@@ -886,6 +894,15 @@
           },
           "bestAudio": {
             "$ref": "#/components/schemas/MediaFormatDto"
+          },
+          "httpHeaders": {
+            "type": "object",
+            "description": "Required root HTTP headers (User-Agent, Referer) for accessing protected CDN streams"
+          },
+          "isLive": {
+            "type": "boolean",
+            "example": false,
+            "description": "True if media is a live stream"
           }
         },
         "required": [

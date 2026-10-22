@@ -24,7 +24,8 @@ export function buildArguments(input: MediaInput, directory: string, maxDuration
   ];
 }
 
-function formatDuration(sec?: number | null): string {
+function formatDuration(sec?: number | null, isLive?: boolean): string {
+  if (isLive) return 'LIVE';
   if (!sec || isNaN(sec) || sec <= 0) return '00:00';
   const total = Math.round(sec);
   const h = Math.floor(total / 3600);
@@ -97,6 +98,7 @@ export class MediaService {
       if (signal?.aborted) return reject(new Error('Operation aborted.'));
       const child = spawn(resolveTool('yt-dlp'), [
         '--ignore-config', '--no-playlist', '--no-warnings',
+        '--ignore-errors',
         '--no-cache-dir', '--no-remote-components',
         '--js-runtimes', `node:${process.execPath}`,
         '--socket-timeout', '15',
@@ -120,112 +122,196 @@ export class MediaService {
       child.once('error', error => { signal?.removeEventListener('abort', kill); reject(error); });
       child.once('close', code => {
         signal?.removeEventListener('abort', kill);
-        if (signal?.aborted) reject(new MediaProcessingError('Extraction was interrupted or timed out.'));
-        else if (code !== 0) reject(mediaFailure(stderr));
-        else {
-          try {
-            const j = JSON.parse(stdout);
-            const rawFormats: any[] = Array.isArray(j.formats) ? j.formats : [];
-            const parsedFormats: (ExtractedFormat & { _score: number })[] = [];
+        if (signal?.aborted) return reject(new MediaProcessingError('Extraction was interrupted or timed out.'));
 
-            for (const f of rawFormats) {
-              if (!f || typeof f.url !== 'string' || !f.url.startsWith('http') || f.has_drm) continue;
-              const hasVideo = Boolean((f.vcodec && f.vcodec !== 'none') || (typeof f.height === 'number' && f.height > 0));
-              const hasAudio = Boolean((f.acodec && f.acodec !== 'none') || (Boolean(f.abr) && !hasVideo));
-              if (!hasVideo && !hasAudio) continue;
+        let j: any = null;
+        if (stdout.trim()) {
+          try { j = JSON.parse(stdout); } catch { /* Fall through to check code */ }
+        }
 
-              const type = hasVideo ? 'video' : 'audio';
-              let quality = 'default';
-              if (hasVideo && f.height) quality = `${f.height}p`;
-              else if (!hasVideo && f.abr) quality = `${Math.round(f.abr)}kbps`;
-              else if (!hasVideo) quality = 'audio';
-              else if (f.format_note) quality = String(f.format_note);
+        const entry = j && Array.isArray(j.entries)
+          ? j.entries.find((e: any) => e && Array.isArray(e.formats) && e.formats.length > 0) ?? j.entries[0]
+          : null;
 
-              const ext = String(f.ext || (hasVideo ? 'mp4' : 'm4a')).toLowerCase();
-              const resolution = hasVideo && f.width && f.height ? `${f.width}x${f.height}` : (hasVideo && f.height ? `${f.height}p` : null);
-              const filesize = typeof f.filesize === 'number' && f.filesize > 0
-                ? f.filesize
-                : (typeof f.filesize_approx === 'number' && f.filesize_approx > 0 ? Math.round(f.filesize_approx) : null);
+        const rawFormats: any[] = (j && Array.isArray(j.formats) && j.formats.length)
+          ? j.formats
+          : (entry && Array.isArray(entry.formats) ? entry.formats : []);
 
-              parsedFormats.push({
-                formatId: String(f.format_id ?? ''),
-                type,
-                quality,
-                resolution,
-                ext,
-                height: typeof f.height === 'number' ? f.height : null,
-                width: typeof f.width === 'number' ? f.width : null,
-                fps: typeof f.fps === 'number' ? f.fps : null,
-                filesize,
-                filesizeFormatted: formatBytes(filesize),
-                hasVideo,
-                hasAudio,
-                protocol: typeof f.protocol === 'string' ? f.protocol : undefined,
-                url: f.url,
-                _score: (hasVideo && hasAudio ? 1000 : 0) + (ext === 'mp4' ? 50 : 0) + (f.tbr ?? 0)
-              });
-            }
+        if (!j || rawFormats.length === 0) {
+          if (code !== 0) return reject(mediaFailure(stderr));
+          return reject(new MediaProcessingError('Failed to parse media metadata from extractor.'));
+        }
 
-            // Deduplicate by (type, quality, ext) keeping highest score
-            const formatMap = new Map<string, ExtractedFormat>();
-            for (const item of parsedFormats) {
-              const key = `${item.type}:${item.quality}:${item.ext}`;
-              const existing = formatMap.get(key) as (ExtractedFormat & { _score?: number }) | undefined;
-              if (!existing || item._score > (existing._score ?? 0)) {
-                formatMap.set(key, item);
+        try {
+          const parsedFormats: (ExtractedFormat & { _score: number })[] = [];
+
+          for (const f of rawFormats) {
+            if (!f || typeof f.url !== 'string' || !f.url.startsWith('http') || f.has_drm) continue;
+            const ext = String(f.ext || (f.video_ext && f.video_ext !== 'none' ? 'mp4' : 'm4a')).toLowerCase();
+
+            const isExplicitAudio = f.vcodec === 'none' ||
+              f.resolution === 'audio only' ||
+              f.url.includes('/mp4a/') ||
+              f.url.includes('/aud/') ||
+              (f.format_id && String(f.format_id).toLowerCase().includes('audio')) ||
+              ['mp3', 'm4a', 'aac', 'wav', 'opus', 'ogg', 'flac'].includes(ext);
+
+            const isExplicitVideo = f.acodec === 'none' || f.resolution === 'video only';
+
+            let hasVideo = false;
+            let hasAudio = false;
+
+            if (isExplicitAudio && !f.height && (!f.vcodec || f.vcodec === 'none')) {
+              hasVideo = false;
+              hasAudio = true;
+            } else if (isExplicitVideo && (!f.acodec || f.acodec === 'none')) {
+              hasVideo = true;
+              hasAudio = false;
+            } else {
+              const codecVideo = Boolean(f.vcodec && f.vcodec !== 'none');
+              const codecAudio = Boolean(f.acodec && f.acodec !== 'none');
+              const heightVideo = typeof f.height === 'number' && f.height > 0;
+              const abrAudio = typeof f.abr === 'number' && f.abr > 0;
+
+              hasVideo = codecVideo || heightVideo;
+              hasAudio = codecAudio || abrAudio;
+
+              if (!hasVideo && !hasAudio) {
+                if (['mp4', 'webm', 'mkv', 'mov', '3gp', 'flv', 'm4v', 'ts'].includes(ext)) {
+                  hasVideo = true;
+                  hasAudio = f.acodec !== 'none';
+                } else {
+                  hasAudio = true;
+                }
               }
             }
 
-            const cleanMedias = Array.from(formatMap.values())
-              .map(({ _score, ...rest }: any) => rest as ExtractedFormat)
-              .sort((a, b) => {
-                if (a.type !== b.type) return a.type === 'video' ? -1 : 1;
-                const hA = parseInt(a.quality) || 0;
-                const hB = parseInt(b.quality) || 0;
-                return hB - hA;
-              });
+            if (!hasVideo && !hasAudio) {
+              if (rawFormats.length <= 2) hasVideo = true;
+              else continue;
+            }
 
-            const bestVideo = cleanMedias.find(m => m.hasVideo && m.hasAudio) ?? cleanMedias.find(m => m.hasVideo);
-            const bestAudio = cleanMedias.find(m => m.type === 'audio') ?? cleanMedias.find(m => m.hasAudio);
+            const type = hasVideo ? 'video' : 'audio';
+            let quality = 'default';
+            if (hasVideo && f.height) quality = `${f.height}p`;
+            else if (!hasVideo && f.abr) quality = `${Math.round(f.abr)}kbps`;
+            else if (!hasVideo) quality = 'audio';
+            else if (f.format_note) quality = String(f.format_note);
+            else if (hasVideo && f.resolution) quality = String(f.resolution);
+            else if (hasVideo) quality = 'original';
 
-            const durationNum = typeof j.duration === 'number' ? Math.round(j.duration) : 0;
-            const authorName = String(j.uploader ?? j.channel ?? j.creator ?? 'Unknown');
-            const username = j.uploader_id ? String(j.uploader_id) : null;
-            const authorUrl = j.uploader_url ? String(j.uploader_url) : null;
-            const thumbnail = typeof j.thumbnail === 'string'
-              ? j.thumbnail
-              : (Array.isArray(j.thumbnails) && j.thumbnails.length ? j.thumbnails[j.thumbnails.length - 1].url : null);
+            const resolution = hasVideo && f.width && f.height ? `${f.width}x${f.height}` : (hasVideo && f.height ? `${f.height}p` : (hasVideo ? f.resolution ?? null : null));
+            const filesize = typeof f.filesize === 'number' && f.filesize > 0
+              ? f.filesize
+              : (typeof f.filesize_approx === 'number' && f.filesize_approx > 0 ? Math.round(f.filesize_approx) : null);
 
-            resolve({
-              id: String(j.id ?? ''),
-              platform,
-              title: String(j.title ?? j.fulltitle ?? 'Media'),
-              description: typeof j.description === 'string' ? j.description.slice(0, 1000) : null,
-              thumbnail,
-              duration: durationNum,
-              durationFormatted: formatDuration(durationNum),
-              author: {
-                name: authorName,
-                username,
-                url: authorUrl
-              },
-              uploader: authorName,
-              download: {
-                video: bestVideo?.url ?? null,
-                audio: bestAudio?.url ?? null
-              },
-              medias: cleanMedias,
-              formats: cleanMedias,
-              bestVideo,
-              bestAudio
+            const isM3u8 = f.url.includes('.m3u8') || (typeof f.protocol === 'string' && f.protocol.startsWith('m3u8'));
+            const isDirectHttp = !isM3u8 && (f.url.startsWith('http://') || f.url.startsWith('https://'));
+
+            const heightBonus = hasVideo && f.height ? Number(f.height) * 2 : 0;
+            const directBonus = isDirectHttp ? 500 : 0;
+            const score = (hasVideo && hasAudio ? 1000 : 0) +
+              directBonus +
+              heightBonus +
+              (ext === 'mp4' ? 50 : 0) +
+              (f.tbr ?? f.abr ?? 0);
+
+            const headers = (f.http_headers && typeof f.http_headers === 'object') ? f.http_headers : (j.http_headers && typeof j.http_headers === 'object') ? j.http_headers : undefined;
+            const cookies = typeof f.cookies === 'string' ? f.cookies : (typeof j.cookies === 'string' ? j.cookies : undefined);
+
+            parsedFormats.push({
+              formatId: String(f.format_id ?? ''),
+              type,
+              quality,
+              resolution,
+              ext: isM3u8 && !hasVideo ? 'm3u8' : ext,
+              height: typeof f.height === 'number' ? f.height : null,
+              width: typeof f.width === 'number' ? f.width : null,
+              fps: typeof f.fps === 'number' ? f.fps : null,
+              filesize,
+              filesizeFormatted: formatBytes(filesize),
+              hasVideo,
+              hasAudio,
+              protocol: typeof f.protocol === 'string' ? f.protocol : undefined,
+              url: f.url,
+              httpHeaders: headers,
+              cookies,
+              _score: score
             });
-          } catch {
-            reject(new MediaProcessingError('Failed to parse media metadata from extractor.'));
           }
+
+          // Deduplicate by (type, quality, ext) keeping highest score
+          const formatMap = new Map<string, ExtractedFormat & { _score: number }>();
+          for (const item of parsedFormats) {
+            const key = `${item.type}:${item.quality}:${item.ext}`;
+            const existing = formatMap.get(key);
+            if (!existing || item._score > existing._score) {
+              formatMap.set(key, item);
+            }
+          }
+
+          const cleanMedias = Array.from(formatMap.values())
+            .sort((a, b) => {
+              if (a.type !== b.type) return a.type === 'video' ? -1 : 1;
+              return b._score - a._score;
+            })
+            .map(({ _score, ...rest }) => rest as ExtractedFormat);
+
+          const videoFormats = cleanMedias.filter(m => m.hasVideo);
+          const bestVideo = videoFormats.find(m => m.hasAudio && !m.url.includes('.m3u8')) ??
+                            videoFormats.find(m => !m.url.includes('.m3u8')) ??
+                            videoFormats.find(m => m.hasAudio) ??
+                            videoFormats[0];
+
+          const audioFormats = cleanMedias.filter(m => m.hasAudio);
+          const bestAudio = audioFormats.find(m => m.type === 'audio' && !m.url.includes('.m3u8')) ??
+                            audioFormats.find(m => m.type === 'audio') ??
+                            audioFormats.find(m => !m.url.includes('.m3u8')) ??
+                            audioFormats[0];
+
+          const isLive = Boolean(j.is_live || j.live_status === 'is_live' || (entry && (entry.is_live || entry.live_status === 'is_live')));
+          const dur = typeof j.duration === 'number' ? j.duration : (entry && typeof entry.duration === 'number' ? entry.duration : null);
+          const durationNum = typeof dur === 'number' && !isLive ? Math.round(dur) : 0;
+          const authorName = String(j.uploader ?? j.channel ?? j.creator ?? entry?.uploader ?? entry?.creator ?? 'Unknown');
+          const username = j.uploader_id ? String(j.uploader_id) : (entry?.uploader_id ? String(entry.uploader_id) : null);
+          const authorUrl = j.uploader_url ? String(j.uploader_url) : (entry?.uploader_url ? String(entry.uploader_url) : null);
+          const thumbnail = typeof j.thumbnail === 'string'
+            ? j.thumbnail
+            : (Array.isArray(j.thumbnails) && j.thumbnails.length ? j.thumbnails[j.thumbnails.length - 1].url : (entry?.thumbnail ?? null));
+          const title = String(j.title ?? j.fulltitle ?? entry?.title ?? entry?.fulltitle ?? 'Media');
+          const description = typeof j.description === 'string' ? j.description.slice(0, 1000) : (entry && typeof entry.description === 'string' ? entry.description.slice(0, 1000) : null);
+
+          const rootHeaders = (j.http_headers && typeof j.http_headers === 'object') ? j.http_headers : undefined;
+
+          resolve({
+            id: String(j.id ?? entry?.id ?? ''),
+            platform,
+            title,
+            description,
+            thumbnail,
+            duration: durationNum,
+            durationFormatted: formatDuration(durationNum, isLive),
+            author: {
+              name: authorName,
+              username,
+              url: authorUrl
+            },
+            uploader: authorName,
+            download: {
+              video: bestVideo?.url ?? null,
+              audio: bestAudio?.url ?? null
+            },
+            medias: cleanMedias,
+            formats: cleanMedias,
+            bestVideo,
+            bestAudio,
+            httpHeaders: rootHeaders,
+            isLive
+          });
+        } catch {
+          reject(new MediaProcessingError('Failed to parse media metadata from extractor.'));
         }
       });
     });
   }
 }
-
-

@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createApplication } from '../dist/bootstrap.js';
 import { authenticate } from '../dist/auth/auth.guard.js';
-import { normalizeMedia, platforms } from '../dist/media/platforms.js';
+import { normalizeExtract, normalizeMedia, platforms } from '../dist/media/platforms.js';
 import { buildArguments } from '../dist/media/media.service.js';
 import { DownloadsService } from '../dist/downloads/downloads.service.js';
 import { resolveTool } from '../dist/media/media-tools.js';
@@ -70,14 +70,18 @@ async function setup(t, options = {}) {
   return { app, document, jobs: app.get(DownloadsService), directory, request, create, extract };
 }
 
-test('all nine platform examples normalize; hostile destinations and unsupported link types fail', () => {
+test('all ten platform examples normalize; hostile destinations and unsupported link types fail', () => {
   const enabled = platforms();
-  assert.equal(enabled.length, 9);
+  assert.equal(enabled.length, 10);
   for (const platform of enabled) {
     const normalized = normalizeMedia({ ...input, url: platform.example, format: platform.formats[0] });
     assert.equal(normalized.platform, platform.id);
     assert.equal(new URL(normalized.url).protocol, 'https:');
   }
+    assert.equal(normalizeMedia({ ...input, url: 'https://www.snapchat.com/@mfahad-farooq/spotlight/W7_EDlXWTBiXAEEniNoMPwAAYbW12dXV2dXJpAaFOdyJoAaFOc0e5AAAAAQ' }).platform, 'snapchat');
+  assert.equal(normalizeExtract('https://www.twitch.tv/caedrel').url, 'https://www.twitch.tv/caedrel');
+  assert.equal(normalizeExtract('https://www.twitch.tv/caedrel').platform, 'twitch');
+  assert.throws(() => normalizeMedia({ ...input, url: 'https://www.twitch.tv/caedrel' }), /Twitch live streams cannot be downloaded/);
   assert.equal(normalizeMedia({ ...input, url: 'https://youtu.be/abcdefghijk?t=4' }).url, input.url);
   for (const url of ['http://youtube.com/watch?v=abcdefghijk', 'https://127.0.0.1/a', 'https://youtube.com.evil.test/watch?v=abcdefghijk', 'https://youtube.com@evil.test/watch?v=abcdefghijk', 'https://youtube.com:444/watch?v=abcdefghijk', 'file:///etc/passwd', 'https://youtube.com/playlist?list=abcdefghijk', 'https://soundcloud.com/artist/sets/album', 'https://vm.tiktok.com/example', 'https://www.instagram.com/stories/person/123']) {
     assert.throws(() => normalizeMedia({ ...input, url }));
@@ -120,7 +124,7 @@ test('Nest HTTP lifecycle, customer isolation, listing, file download and Swagge
   assert.ok(spec.paths['/v1/extract'].post.requestBody.content['application/json']);
   assert.deepEqual(spec.paths['/v1/jobs'].post.security, [{ 'direct-key': [] }]);
   assert.equal(spec.components.schemas.CreateDownloadDto.properties.url.maxLength, 2048);
-  assert.equal((await (await request('/v1/platforms')).json()).length, 9);
+  assert.equal((await (await request('/v1/platforms')).json()).length, 10);
   assert.equal((await request('/health')).status, 200);
   assert.equal((await request('/v1/jobs', { headers: { Authorization: '' } })).status, 401);
   const headers = rapidHeaders('alice');

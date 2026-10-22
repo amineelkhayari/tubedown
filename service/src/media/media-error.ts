@@ -2,6 +2,7 @@ export class MediaProcessingError extends Error {}
 
 // Translate known yt-dlp diagnostics without returning URLs, tokens or filesystem paths.
 export function mediaFailure(stderr: string): MediaProcessingError {
+  if (/not currently live|channel is not live/i.test(stderr)) return new MediaProcessingError('This Twitch channel is not currently live.');
   if (/sign in|log.?in|confirm you.re not a bot|cookies.*required|authentication required/i.test(stderr)) return new MediaProcessingError('The media provider requires authentication or rejected this server. Try another public video; login-only downloads are not supported.');
   if (/requested format.*not available|no video formats found/i.test(stderr)) return new MediaProcessingError('The requested output format or resolution is unavailable for this media. Try MP3 or a different video.');
   if (/video unavailable|private video|has been removed|not available in your country|not available from your location/i.test(stderr)) return new MediaProcessingError('This media is unavailable, private, removed, or region-restricted.');

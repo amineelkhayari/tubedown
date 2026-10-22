@@ -52,6 +52,10 @@ export class MediaFormatDto {
   @ApiProperty({ example: true }) hasAudio!: boolean;
   @ApiPropertyOptional({ example: 'https' }) protocol?: string;
   @ApiProperty({ example: 'https://...' }) url!: string;
+  @ApiPropertyOptional({ type: Object, description: 'Required HTTP headers (User-Agent, Referer) for accessing protected CDN streams' })
+  httpHeaders?: Record<string, string>;
+  @ApiPropertyOptional({ description: 'Required session cookies for accessing protected CDN streams' })
+  cookies?: string;
 }
 
 export class ExtractedMediaDto {
@@ -69,6 +73,10 @@ export class ExtractedMediaDto {
   @ApiProperty({ type: [MediaFormatDto], description: 'Alias for medias array' }) formats!: MediaFormatDto[];
   @ApiPropertyOptional({ type: MediaFormatDto }) bestVideo?: MediaFormatDto;
   @ApiPropertyOptional({ type: MediaFormatDto }) bestAudio?: MediaFormatDto;
+  @ApiPropertyOptional({ type: Object, description: 'Required root HTTP headers (User-Agent, Referer) for accessing protected CDN streams' })
+  httpHeaders?: Record<string, string>;
+  @ApiPropertyOptional({ example: false, description: 'True if media is a live stream' })
+  isLive?: boolean;
 }
 
 
@@ -88,4 +96,3 @@ export class ErrorDto {
   @ApiProperty() statusCode!: number;
   @ApiProperty() error!: string;
 }
-

@@ -77,17 +77,52 @@ $('download-form').addEventListener('submit', async event => {
       meta.textContent = `${result.durationFormatted || '00:00'} · ${authorName}`;
       content.append(meta);
 
+      if (result.platform === 'tiktok') {
+        const note = document.createElement('div');
+        note.style.margin = '8px 0';
+        note.style.padding = '8px 12px';
+        note.style.background = '#451a03';
+        note.style.color = '#fed7aa';
+        note.style.borderRadius = '6px';
+        note.style.fontSize = '12px';
+        note.style.lineHeight = '1.4';
+        note.innerHTML = '⚠️ <strong>TikTok CDN Note:</strong> TikTok protects raw stream links with anti-hotlinking tokens and Akamai security, which blocks direct browser clicks with "Access Denied". Use <strong>"⚡ Convert &amp; Download via Server"</strong> below for a direct 1-click browser download, or fetch direct links using the provided HTTP headers.';
+        content.append(note);
+      }
+
       const shortcuts = document.createElement('div');
       shortcuts.style.margin = '8px 0';
       shortcuts.style.display = 'flex';
+      shortcuts.style.flexWrap = 'wrap';
       shortcuts.style.gap = '8px';
+
+      const serverBtn = document.createElement('button');
+      serverBtn.type = 'button';
+      serverBtn.textContent = '⚡ Convert & Download via Server (MP4)';
+      serverBtn.style.padding = '6px 12px';
+      serverBtn.style.background = '#ea580c';
+      serverBtn.style.color = '#fff';
+      serverBtn.style.border = 'none';
+      serverBtn.style.borderRadius = '6px';
+      serverBtn.style.fontWeight = 'bold';
+      serverBtn.style.fontSize = '13px';
+      serverBtn.style.cursor = 'pointer';
+      serverBtn.onclick = () => {
+        $('service-type').value = 'jobs';
+        $('format').value = 'mp4';
+        $('format-wrapper').style.display = 'block';
+        $('quality-row').style.display = 'flex';
+        $('download-form').dispatchEvent(new Event('submit'));
+      };
+      shortcuts.append(serverBtn);
 
       if (result.download?.video) {
         const btnV = document.createElement('a');
         btnV.href = result.download.video;
         btnV.target = '_blank';
         btnV.rel = 'noreferrer';
-        btnV.textContent = '★ Best Video ↓';
+        btnV.referrerPolicy = 'no-referrer';
+        btnV.textContent = '★ Best Direct Video ↓';
         btnV.style.padding = '6px 12px';
         btnV.style.background = '#16a34a';
         btnV.style.color = '#fff';
@@ -103,7 +138,8 @@ $('download-form').addEventListener('submit', async event => {
         btnA.href = result.download.audio;
         btnA.target = '_blank';
         btnA.rel = 'noreferrer';
-        btnA.textContent = '★ Best Audio ↓';
+        btnA.referrerPolicy = 'no-referrer';
+        btnA.textContent = '★ Best Direct Audio ↓';
         btnA.style.padding = '6px 12px';
         btnA.style.background = '#9333ea';
         btnA.style.color = '#fff';
@@ -128,6 +164,7 @@ $('download-form').addEventListener('submit', async event => {
         link.href = fmt.url;
         link.target = '_blank';
         link.rel = 'noreferrer';
+        link.referrerPolicy = 'no-referrer';
         const sizeText = fmt.filesizeFormatted ? ` · ${fmt.filesizeFormatted}` : (fmt.filesize ? formatBytes(fmt.filesize) : '');
         link.textContent = `${fmt.quality} (${fmt.ext})${sizeText} ↓`;
         link.style.display = 'inline-block';
@@ -197,4 +234,3 @@ $('download-form').addEventListener('submit', async event => {
   } catch (error) { $('message').textContent = error.message; }
   finally { $('submit').disabled = false; }
 });
-

@@ -30,6 +30,8 @@ export interface ExtractedFormat {
   hasAudio: boolean;
   protocol?: string;
   url: string;
+  httpHeaders?: Record<string, string>;
+  cookies?: string;
 }
 
 export interface ExtractedMedia {
@@ -47,8 +49,8 @@ export interface ExtractedMedia {
   formats: ExtractedFormat[];
   bestVideo?: ExtractedFormat;
   bestAudio?: ExtractedFormat;
+  httpHeaders?: Record<string, string>;
+  isLive?: boolean;
 }
 
 export type ExtractRunner = (url: string, platform: string, signal?: AbortSignal) => Promise<ExtractedMedia>;
-
-

@@ -22,7 +22,7 @@ export const PLATFORM_RULES: PlatformRule[] = [
   },
   {
     id: 'dailymotion', name: 'Dailymotion', hosts: ['dailymotion.com', 'www.dailymotion.com', 'dai.ly'], formats: videoFormats,
-    example: 'https://www.dailymotion.com/video/x84sh87', notes: 'Public single videos.',
+    example: 'https://dailymotion.com/video/x84sh87', notes: 'Public single videos.',
     canonical: url => { const id = /^\/(?:video\/)?([a-zA-Z0-9]+)\/?$/.exec(url.pathname)?.[1]; return id ? `https://www.dailymotion.com/video/${id}` : undefined; },
   },
   {
@@ -50,16 +50,44 @@ export const PLATFORM_RULES: PlatformRule[] = [
   },
   {
     id: 'twitch', name: 'Twitch', hosts: ['twitch.tv', 'www.twitch.tv', 'clips.twitch.tv'], formats: videoFormats,
-    example: 'https://www.twitch.tv/videos/1234567890', notes: 'Public recordings and clips within the duration limit; no live streams or subscriber-only media.',
+    example: 'https://twitch.tv/videos/1234567890', notes: 'Public recordings, clips, and live streams for extraction. Server file downloads exclude live streams.',
     canonical: url => {
       if (url.hostname === 'clips.twitch.tv' && /^\/[\w-]+$/.test(url.pathname)) return `https://clips.twitch.tv${url.pathname}`;
-      return /^\/(?:videos\/\d+|[\w]+\/clip\/[\w-]+)\/?$/.test(url.pathname) ? `https://www.twitch.tv${url.pathname}` : undefined;
+      if (/^\/(?:videos\/\d+|[\w]+\/clip\/[\w-]+)\/?$/.test(url.pathname)) return `https://www.twitch.tv${url.pathname}`;
+      const cleanPath = url.pathname.replace(/\/+$/, '');
+      const match = /^\/([a-zA-Z0-9_]{3,25})$/.exec(cleanPath);
+      const reserved = ['directory', 'downloads', 'jobs', 'settings', 'wallet', 'subscriptions', 'turbo', 'prime', 'videos', 'clip', 'p'];
+      if (match && !reserved.includes(match[1].toLowerCase())) {
+        return `https://www.twitch.tv/${match[1]}`;
+      }
+      return undefined;
     },
   },
   {
-    id: 'soundcloud', name: 'SoundCloud', hosts: ['soundcloud.com', 'www.soundcloud.com'], formats: ['mp3'],
-    example: 'https://soundcloud.com/artist/track', notes: 'Public individual tracks, MP3 only; no sets, private tracks, or paid content.',
-    canonical: url => /^\/(?!discover\/|charts\/|search\/)[\w-]+\/(?!sets(?:\/|$)|tracks(?:\/|$)|albums(?:\/|$)|likes(?:\/|$)|reposts(?:\/|$))[\w-]+\/?$/.test(url.pathname) ? `https://soundcloud.com${url.pathname}` : undefined,
+    id: 'soundcloud', name: 'SoundCloud', hosts: ['soundcloud.com', 'www.soundcloud.com', 'm.soundcloud.com', 'on.soundcloud.com'], formats: ['mp3'],
+    example: 'https://soundcloud.com/artist/track', notes: 'Public tracks and sets, MP3 only; supports mobile on.soundcloud.com short links.',
+    canonical: url => {
+      if (url.hostname === 'on.soundcloud.com' && /^\/[\w-]+$/.test(url.pathname)) {
+        return `https://on.soundcloud.com${url.pathname}`;
+      }
+      const cleanPath = url.pathname.replace(/\/+$/, '');
+      const reserved = ['discover', 'charts', 'search', 'you', 'stream', 'upload', 'settings', 'messages', 'feed', 'terms-of-use', 'popular', 'pages', 'imprint'];
+      const segments = cleanPath.split('/').filter(Boolean);
+      if (segments.length < 2 || segments.length > 4 || reserved.includes(segments[0].toLowerCase())) {
+        return undefined;
+      }
+      return `https://soundcloud.com${cleanPath}`;
+    },
+  },
+  {
+    id: 'snapchat', name: 'Snapchat', hosts: ['snapchat.com', 'www.snapchat.com', 'story.snapchat.com', 't.snapchat.com'], formats: videoFormats,
+    example: 'https://www.snapchat.com/@creator/spotlight/1234567890', notes: 'Public Spotlight videos and stories.',
+    canonical: url => {
+      if (url.hostname === 't.snapchat.com' && /^\/[\w-]+$/.test(url.pathname)) return `https://t.snapchat.com${url.pathname}`;
+      const cleanPath = url.pathname.replace(/\/+$/, '');
+      const match = /^\/(?:@[\w.-]+\/)?(?:spotlight|p)\/([\w-]+)$/.exec(cleanPath);
+      return match ? `https://www.snapchat.com${cleanPath}` : undefined;
+    },
   },
 ];
 
@@ -81,6 +109,14 @@ export function normalizeMedia(input: { url: string; format: OutputFormat; quali
   const { url: canonical, platform } = normalizeExtract(input.url);
   const rule = PLATFORM_RULES.find(p => p.id === platform)!;
   if (!rule.formats.includes(input.format)) throw new BadRequestException(`${rule.name} supports ${rule.formats.join(', ')} output only.`);
+  if (platform === 'twitch') {
+    const parsed = new URL(canonical);
+    if (!/^\/(?:videos\/\d+|[\w]+\/clip\/[\w-]+)/.test(parsed.pathname) && parsed.hostname !== 'clips.twitch.tv') {
+      throw new BadRequestException('Twitch live streams cannot be downloaded as server files. Use POST /v1/extract for live HLS streams.');
+    }
+  }
+  if (platform === 'soundcloud' && /\/sets(?:\/|$)/.test(canonical)) {
+    throw new BadRequestException('SoundCloud sets/playlists cannot be downloaded as single server files. Use POST /v1/extract or provide an individual track URL.');
+  }
   return { ...input, url: canonical, platform };
 }
-
