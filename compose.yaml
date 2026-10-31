@@ -2,7 +2,7 @@ services:
   media:
     build:
       context: .
-      dockerfile: service/Dockerfile
+      dockerfile: Dockerfile
     ports:
       - "3000:3000"
     env_file:

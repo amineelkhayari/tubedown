@@ -8,7 +8,7 @@
 	"version": "4.0.2",
 	"main": "main.js",
 	"scripts": {
-		"start": "electron .",
+		"start": "node start.js",
 		"test": "playwright test",
 		"dist": "electron-builder",
 		"postinstall": "node patch-snap.js",
@@ -20,7 +20,9 @@
 		"gh-windows": "electron-builder -w --publish=always",
 		"gh-windows-arm64": "electron-builder -w --arm64 -c.win.artifactName=\"${productName}_Win_arm64.${ext}\" --publish=never",
 		"gh-linux": "electron-builder -l --publish=always",
-		"gh-mac": "electron-builder -m --publish=always"
+		"gh-mac": "electron-builder -m --publish=always",
+		"start:electron": "electron .",
+		"start:service": "npm --prefix service start"
 	},
 	"author": {
 		"name": "Andrew",
