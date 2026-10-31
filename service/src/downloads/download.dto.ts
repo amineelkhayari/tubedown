@@ -92,6 +92,20 @@ export class DownloadDto {
   @ApiPropertyOptional() downloadPath?: string;
 }
 
+export class FallbackMediaDto {
+  @ApiProperty({ enum: ['extract', 'job'], description: 'Result strategy: instant direct extraction or background transcoding job' })
+  mode!: 'extract' | 'job';
+
+  @ApiPropertyOptional({ type: ExtractedMediaDto, description: 'Direct streaming URLs and metadata when instant extraction succeeds' })
+  extract?: ExtractedMediaDto;
+
+  @ApiPropertyOptional({ type: DownloadDto, description: 'Asynchronous transcode job when server-side processing is required' })
+  job?: DownloadDto;
+
+  @ApiPropertyOptional({ description: 'Status message or explanation of why the strategy was chosen' })
+  message?: string;
+}
+
 export class ErrorDto {
   @ApiProperty() statusCode!: number;
   @ApiProperty() error!: string;

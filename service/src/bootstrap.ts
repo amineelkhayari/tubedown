@@ -14,8 +14,13 @@ export async function createApplication(options: ServiceOptions = {}, logging = 
   app.disable('x-powered-by');
   app.use(helmet({
     contentSecurityPolicy: { directives: {
-      defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", 'data:'], connectSrc: ["'self'"], frameAncestors: ["'none'"],
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
+      mediaSrc: ["'self'", 'https:', 'blob:', 'data:'],
+      connectSrc: ["'self'", 'https:', 'blob:'],
+      frameAncestors: ["'none'"],
       upgradeInsecureRequests: null,
     } },
     strictTransportSecurity: process.env.NODE_ENV === 'production' ? undefined : false,

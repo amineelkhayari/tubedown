@@ -260,7 +260,14 @@ Set these variables in your deployment environment or in a `service/.env` file:
 * **Headers Required**: `Authorization: Bearer <API_KEY>` or RapidAPI Gateway headers.
 * **Response**: Binary stream (`video/mp4` or `audio/mpeg`) with `Content-Disposition: attachment; filename="media.mp4"`.
 
-### 5. Utility Endpoints
+### 5. Smart Extraction with Job Fallback
+**`POST /v1/fallback`**
+* Automatically attempts instant direct extraction first (~1–2s).
+* If direct extraction is restricted (e.g. TikTok video streams on Akamai CDN) or fails, seamlessly falls back to creating an asynchronous server transcode job.
+* Returns `{ "mode": "extract" | "job", ... }`.
+
+### 6. Utility Endpoints
+* `GET /v1/fallback`: Information and capabilities of the fallback controller pipeline.
 * `GET /v1/platforms`: Returns all 10 enabled platforms and rules.
 * `GET /v1/jobs`: Returns the 100 most recent jobs for the calling user.
 * `DELETE /v1/jobs/{id}`: Cancels a queued or running job.

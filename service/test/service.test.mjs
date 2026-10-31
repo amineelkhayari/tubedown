@@ -67,7 +67,8 @@ async function setup(t, options = {}) {
   const request = (url, options = {}) => fetch(base + url, { ...options, headers: { Authorization: `Bearer ${apiKey}`, ...options.headers } });
   const create = (payload = input, headers = {}) => request('/v1/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(payload) });
   const extract = (payload = { url: input.url }, headers = {}) => request('/v1/extract', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(payload) });
-  return { app, document, jobs: app.get(DownloadsService), directory, request, create, extract };
+  const fallback = (payload = input, headers = {}) => request('/v1/fallback', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(payload) });
+  return { app, document, jobs: app.get(DownloadsService), directory, request, create, extract, fallback };
 }
 
 test('all ten platform examples normalize; hostile destinations and unsupported link types fail', () => {
@@ -246,4 +247,59 @@ test('restart preserves completed files, fails interrupted jobs, and cleans expi
   assert.throws(() => jobs.get(completed.id, 'alice'), { status: 404 });
   await jobs.cleanup();
   await assert.rejects(readFile(path.join(directory, completed.id, 'job.json')), { code: 'ENOENT' });
+});
+
+
+test('FallbackController provides SPA routing, 404 handling, and smart extraction/job fallback', async t => {
+  const { app, request, fallback, jobs } = await setup(t);
+  
+  // 1. GET /v1/fallback metadata info
+  const infoRes = await request('/v1/fallback');
+  assert.equal(infoRes.status, 200);
+  const info = await infoRes.json();
+  assert.equal(info.status, 'ready');
+  assert.deepEqual(info.strategies, ['extract', 'job', 'stream-proxy']);
+
+  // 2. SPA client navigation fallback returns 200 with HTML
+  const spaRes = await request('/downloads');
+  assert.equal(spaRes.status, 200);
+  const html = await spaRes.text();
+  assert.ok(html.includes('YTDownloader'));
+
+  // 3. Unhandled /v1 API routes throw 404 JSON
+  const notFoundRes = await request('/v1/unknown-endpoint');
+  assert.equal(notFoundRes.status, 404);
+  const notFoundJson = await notFoundRes.json();
+  assert.equal(notFoundJson.statusCode, 404);
+
+  // 4. POST /v1/fallback requires authentication
+  const unauthRes = await request('/v1/fallback', { method: 'POST', headers: { Authorization: '' } });
+  assert.equal(unauthRes.status, 401);
+
+  // 5. POST /v1/fallback attempts instant direct extraction
+  const extractFallback = await fallback({ url: input.url, format: 'mp4' });
+  assert.equal(extractFallback.status, 200);
+  const extractData = await extractFallback.json();
+  assert.equal(extractData.mode, 'extract');
+  assert.equal(extractData.extract.id, 'test-id');
+  assert.ok(extractData.extract.download.video);
+
+  // 6. POST /v1/fallback with TikTok MP4 falls back to server transcode job
+  const tiktokFallback = await fallback({ url: 'https://www.tiktok.com/@creator/video/1234567890', format: 'mp4' });
+  assert.equal(tiktokFallback.status, 200);
+  const tiktokData = await tiktokFallback.json();
+  assert.equal(tiktokData.mode, 'job');
+  assert.ok(tiktokData.job.id);
+  assert.equal(tiktokData.job.platform, 'tiktok');
+
+  // 7. GET /v1/stream parameter validation and SSRF prevention
+  const noUrlRes = await request('/v1/stream');
+  assert.equal(noUrlRes.status, 400);
+
+  const localRes = await request('/v1/stream?url=' + encodeURIComponent('http://127.0.0.1/secret'));
+  assert.equal(localRes.status, 400);
+
+  const invalidProto = await request('/v1/stream?url=' + encodeURIComponent('file:///etc/passwd'));
+  assert.equal(invalidProto.status, 400);
+
 });

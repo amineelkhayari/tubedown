@@ -536,6 +536,171 @@
           "Platforms"
         ]
       }
+    },
+    "/v1/fallback": {
+      "get": {
+        "description": "Returns available fallback processing strategies and controller status.",
+        "operationId": "FallbackController_info",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FallbackInfoDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Fallback strategy details",
+        "tags": [
+          "Fallback & Streaming"
+        ]
+      },
+      "post": {
+        "description": "Attempts instant direct CDN extraction first (1–2s). If direct streaming is protected (e.g. TikTok Akamai CDN hotlink blocks), unavailable, or fails, seamlessly falls back to creating an asynchronous server transcode job.",
+        "operationId": "FallbackController_fallback",
+        "parameters": [
+          {
+            "name": "Content-Type",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": "application/json"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDownloadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FallbackMediaDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDto"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds 4 KiB.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDto"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Submission limit reached.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Media executables are missing or unavailable on the server.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "direct-key": []
+          }
+        ],
+        "summary": "Smart extraction with automatic transcode job fallback",
+        "tags": [
+          "Fallback & Streaming"
+        ]
+      }
+    },
+    "/v1/stream": {
+      "get": {
+        "description": "Proxies video/audio streaming directly from provider CDNs with provider-specific Referer and User-Agent headers, supporting HTTP 206 Range requests for seamless HTML5 video playback.",
+        "operationId": "FallbackController_streamMedia",
+        "parameters": [
+          {
+            "name": "url",
+            "required": true,
+            "in": "query",
+            "description": "Direct CDN media stream URL to proxy",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "platform",
+            "required": false,
+            "in": "query",
+            "description": "Origin platform ID (e.g. instagram, tiktok, youtube)",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Full media binary stream"
+          },
+          "206": {
+            "description": "Partial media chunk stream with Content-Range"
+          }
+        },
+        "summary": "Streaming proxy to bypass CDN hotlink protections and CORS blocks",
+        "tags": [
+          "Fallback & Streaming"
+        ]
+      }
     }
   },
   "info": {
@@ -968,6 +1133,46 @@
           "formats",
           "status",
           "liveVerified"
+        ]
+      },
+      "FallbackInfoDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "FallbackMediaDto": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "extract",
+              "job"
+            ],
+            "description": "Result strategy: instant direct extraction or background transcoding job"
+          },
+          "extract": {
+            "description": "Direct streaming URLs and metadata when instant extraction succeeds",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ExtractedMediaDto"
+              }
+            ]
+          },
+          "job": {
+            "description": "Asynchronous transcode job when server-side processing is required",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DownloadDto"
+              }
+            ]
+          },
+          "message": {
+            "type": "string",
+            "description": "Status message or explanation of why the strategy was chosen"
+          }
+        },
+        "required": [
+          "mode"
         ]
       }
     }

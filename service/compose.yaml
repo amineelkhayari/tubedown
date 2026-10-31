@@ -4,9 +4,12 @@ services:
       context: ..
       dockerfile: service/Dockerfile
     ports:
-      - "127.0.0.1:3000:3000"
+      - "3000:3000"
+    env_file:
+      - path: .env
+        required: false
     environment:
-      API_KEY: ${API_KEY:?Set a random API_KEY with at least 32 characters}
+      API_KEY: ${API_KEY:-5fc69c15396451eb6318a4f95ab7853c7534b2ef3e048746f1bb6a9f822c8d1f}
       RAPIDAPI_PROXY_SECRET: ${RAPIDAPI_PROXY_SECRET:-}
       MAX_DURATION_SECONDS: ${MAX_DURATION_SECONDS:-600}
       MAX_FILESIZE: ${MAX_FILESIZE:-200M}

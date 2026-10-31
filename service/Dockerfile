@@ -7,17 +7,24 @@ COPY service/src ./src
 RUN npm run build && npm prune --omit=dev
 
 FROM node:24-bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-venv ffmpeg ca-certificates tini \
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-venv python3-pip ffmpeg ca-certificates tini \
     && python3 -m venv /opt/media \
     && /opt/media/bin/pip install --no-cache-dir 'yt-dlp[default]' \
     && rm -rf /var/lib/apt/lists/*
-ENV PATH="/opt/media/bin:${PATH}" HOST=0.0.0.0 PORT=3000 DATA_DIR=/app/data NODE_ENV=production
+ENV PATH="/opt/media/bin:${PATH}" \
+    HOST=0.0.0.0 \
+    PORT=3000 \
+    DATA_DIR=/app/data \
+    NODE_ENV=production \
+    HOME=/tmp \
+    XDG_CACHE_HOME=/tmp \
+    XDG_CONFIG_HOME=/tmp
 WORKDIR /app
 COPY --from=build --chown=node:node /build/node_modules ./node_modules
 COPY --from=build --chown=node:node /build/dist ./dist
 COPY --chown=node:node service/package.json ./
 COPY --chown=node:node service/public ./public
-COPY LICENSE ./LICENSE
+COPY LICENSE* ./
 RUN mkdir -p /app/data && chown node:node /app/data
 USER node
 EXPOSE 3000

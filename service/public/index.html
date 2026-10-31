@@ -1,71 +1,182 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>YTDownloader Studio</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YTDownloader Studio · Media Extraction & Transcoder</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
 </head>
 <body>
-  <header><a class="brand" href="/">↓ YTDownloader <span>STUDIO</span></a><a href="/docs">Swagger API docs ↗</a></header>
+  <header>
+    <div class="header-container">
+      <a class="brand" href="/">
+        ↓ YTDownloader <span class="brand-badge">STUDIO</span>
+      </a>
+      <div class="header-nav">
+        <div id="health-status" class="status-pill">
+          <span class="status-dot"></span>
+          <span id="health-label">Checking service...</span>
+        </div>
+        <a class="nav-link" href="/docs">Swagger API ↗</a>
+        <a class="nav-link" href="/openapi.json">OpenAPI Spec</a>
+      </div>
+    </div>
+  </header>
+
   <main>
-    <div class="eyebrow">MEDIA TOOLS / WEB EDITION</div>
-    <h1>Your next download.<br><span>One link away.</span></h1>
-    <p class="intro">Save a public video or extract its audio from supported platforms. Processing runs on the server, so your browser stays light.</p>
-    <div class="layout">
-      <section class="panel">
+    <div class="hero">
+      <div class="eyebrow">MEDIA TOOLS / FULL-STACK SUITE</div>
+      <h1>Universal Media Downloader<br><span>Direct Extraction &amp; Transcoding</span></h1>
+      <p>Save public videos and audio from 10 supported platforms. Use instant direct CDN links or let the server transcode and merge files.</p>
+    </div>
+
+    <!-- API Authentication Card -->
+    <div class="auth-bar">
+      <div class="auth-header">
+        <span class="auth-label">API Key Configuration (Required for Private Operations)</span>
+        <span id="auth-status-text" style="font-size: 11px; color: var(--text-muted);">Stored in your browser</span>
+      </div>
+      <div class="auth-input-group">
+        <input id="key" type="password" placeholder="Enter service API key (stored in local memory)..." autocomplete="off">
+        <button id="toggle-key" class="btn-sm" type="button" title="Show or hide key">👁️ Show</button>
+        <button id="test-key" class="btn-sm" type="button">Test &amp; Save</button>
+      </div>
+    </div>
+
+    <div class="grid-layout">
+      <!-- Processing Form Section -->
+      <section class="card">
         <form id="download-form">
-          <label for="key">Service access key</label>
-          <input id="key" type="password" autocomplete="off" placeholder="Enter your service API key" required>
-          <p class="hint">Use your direct service key here. It stays in this page’s memory.</p>
-          <label for="url">Video or audio link</label>
-          <input id="url" type="url" placeholder="https://www.youtube.com/watch?v=…" required>
-          <div class="options">
+          <div class="form-group">
+            <label for="url">Video or Audio Media Link</label>
+            <div class="input-with-actions">
+              <input id="url" type="url" placeholder="https://www.youtube.com/watch?v=... or click a platform below" required>
+            </div>
+          </div>
+
+          <div class="form-row">
             <div>
-              <label for="service-type">Service Type</label>
+              <label for="service-type">Processing Mode</label>
               <select id="service-type">
-                <option value="extract" selected>Type 1: Instant Direct Links (CDN URLs)</option>
-                <option value="jobs">Type 2: Convert & Download (Merged MP4/MP3)</option>
+                <option value="fallback" selected>🔄 Smart Auto (Extract + Job Fallback)</option>
+                <option value="extract">⚡ Instant Extract (Direct CDN Links)</option>
+                <option value="jobs">🎬 Server Transcode (MP4/MP3 Queue)</option>
               </select>
             </div>
-            <div id="format-wrapper" style="display: none;">
-              <label for="format">Output Format</label>
+
+            <div id="format-wrapper">
+              <label for="format">Target Format</label>
               <select id="format">
-                <option value="mp4" selected>MP4 video</option>
-                <option value="mp3">MP3 audio</option>
+                <option value="mp4" selected>MP4 Video (Merged Video+Audio)</option>
+                <option value="mp3">MP3 Audio (High-Fidelity)</option>
               </select>
             </div>
           </div>
-          <div class="options" id="quality-row" style="display: none;">
+
+          <div class="form-row" id="quality-row">
             <div id="quality-wrapper">
-              <label for="quality">Video Quality</label>
+              <label for="quality">Video Resolution</label>
               <select id="quality">
                 <option value="360">360p</option>
                 <option value="480">480p</option>
                 <option value="720" selected>720p (HD)</option>
                 <option value="1080">1080p (Full HD)</option>
                 <option value="1440">1440p (2K)</option>
-                <option value="2160">2160p (4K)</option>
+                <option value="2160">2160p (4K UHD)</option>
               </select>
             </div>
+
             <div id="audio-quality-wrapper" style="display: none;">
               <label for="audio-quality">Audio Bitrate</label>
               <select id="audio-quality">
                 <option value="128k" selected>128 kbps (Standard)</option>
                 <option value="192k">192 kbps (High)</option>
                 <option value="256k">256 kbps (Very High)</option>
-                <option value="320k">320 kbps (Ultra)</option>
+                <option value="320k">320 kbps (Ultra Studio)</option>
               </select>
             </div>
           </div>
-          <button id="submit" type="submit">Process Request <span>↗</span></button>
-          <p class="hint" id="service-hint">Instant extraction: returns direct CDN stream URLs and all available qualities.</p>
+
+          <button id="submit" class="btn-submit" type="submit">
+            <span>Process Media</span>
+            <span id="submit-icon">↗</span>
+          </button>
+
+          <p id="mode-hint" class="mode-description">
+            Smart Auto Pipeline: Attempts instant direct CDN links first. If protected or restricted (e.g. TikTok video), automatically creates a background transcode job.
+          </p>
         </form>
-        <div id="message" role="status" aria-live="polite"></div>
+
+        <div id="alert-box" class="alert" role="status" aria-live="polite"></div>
       </section>
-      <aside><div class="eyebrow">HOW IT WORKS</div><ol><li><strong>Choose your media</strong><p>Paste a link and choose video or audio.</p></li><li><strong>Let the server work</strong><p>We show the job’s status while it processes.</p></li><li><strong>Save your file</strong><p>Completed files remain available for one hour.</p></li></ol><p class="note">Download content you own or have permission to save.</p></aside>
+
+      <!-- Sidebar Architecture Guide -->
+      <aside class="card">
+        <div class="eyebrow">HOW THE SERVICE WORKS</div>
+        <ul class="guide-steps">
+          <li class="guide-step">
+            <span class="step-num">1</span>
+            <div>
+              <h4>Select Mode or Auto Fallback</h4>
+              <p>Instant Mode extracts raw CDN links straight from the provider. Transcode Mode merges audio &amp; video files into clean local binaries.</p>
+            </div>
+          </li>
+          <li class="guide-step">
+            <span class="step-num">2</span>
+            <div>
+              <h4>Automated Protection Handling</h4>
+              <p>Platforms with hotlink tokens (such as TikTok Akamai) seamlessly route through server-side processing for 100% reliable downloads.</p>
+            </div>
+          </li>
+          <li class="guide-step">
+            <span class="step-num">3</span>
+            <div>
+              <h4>1-Hour File Retention</h4>
+              <p>Server-processed files remain available for 60 minutes with isolated per-user access control.</p>
+            </div>
+          </li>
+        </ul>
+      </aside>
     </div>
-    <section class="results"><div class="section-title"><h2>Enabled platforms</h2><a href="/v1/platforms">View URL requirements ↗</a></div><div id="platforms" class="platforms"></div><p class="hint">Public single-media links only. Availability depends on the provider; private content, playlists and live streams are excluded. SoundCloud supports MP3 only.</p></section>
-    <section class="results"><div class="section-title"><h2>Your session</h2><span id="count">0 jobs</span></div><div id="jobs"><p class="empty">Your downloads will appear here.</p></div></section>
+
+    <!-- Live Extracted Media Result Section -->
+    <section id="extract-results-area" class="results-area" style="display: none;">
+      <div class="section-header">
+        <h2>Extracted Media Streams</h2>
+        <span id="extract-mode-badge" class="platform-tag">Direct Stream</span>
+      </div>
+      <div id="extract-container"></div>
+    </section>
+
+    <!-- Transcode Jobs & Downloads Section -->
+    <section class="results-area">
+      <div class="section-header">
+        <h2>Session Transcode Queue</h2>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span id="job-count" class="status-pill">0 jobs</span>
+          <button id="refresh-jobs-btn" class="btn-sm" type="button">↻ Refresh</button>
+        </div>
+      </div>
+      <div id="jobs-container">
+        <p class="empty-state">No active transcode jobs. Submit a request above to track downloads.</p>
+      </div>
+    </section>
+
+    <!-- Supported Platforms Grid Explorer -->
+    <section class="results-area">
+      <div class="section-header">
+        <h2>Supported Platforms (Click to test sample URL)</h2>
+        <a class="nav-link" href="/v1/platforms">API Platform List ↗</a>
+      </div>
+      <div id="platforms-grid" class="platforms-grid">
+        <p class="empty-state">Loading supported platforms...</p>
+      </div>
+    </section>
   </main>
-  <footer>YTDownloader · NestJS API <span>MP4 / MP3 / SWAGGER</span></footer>
+
+  <footer>
+    YTDownloader Microservice · NestJS 11 · yt-dlp &amp; FFmpeg Transcoder · OpenAPI 3.0
+  </footer>
 </body>
 </html>
