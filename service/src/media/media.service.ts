@@ -1,43 +1,18 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { spawn } from 'node:child_process';
-import { existsSync, writeFileSync } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import { ServiceConfig } from '../config';
 import type { ExtractedFormat, ExtractedMedia, MediaInput, MediaOutput } from './media.types';
 import { missingMediaTools, resolveTool } from './media-tools';
 import { mediaFailure, MediaProcessingError } from './media-error';
 
-export const DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
-
-export function resolveCookiesPath(): string | undefined {
-  if (process.env.YOUTUBE_COOKIES_PATH && existsSync(process.env.YOUTUBE_COOKIES_PATH)) {
-    return process.env.YOUTUBE_COOKIES_PATH;
-  }
-  if (process.env.COOKIES_PATH && existsSync(process.env.COOKIES_PATH)) {
-    return process.env.COOKIES_PATH;
-  }
-  if (process.env.YOUTUBE_COOKIES) {
-    const tmpCookiePath = path.join(os.tmpdir(), 'yt_cookies.txt');
-    try {
-      writeFileSync(tmpCookiePath, process.env.YOUTUBE_COOKIES, 'utf8');
-      return tmpCookiePath;
-    } catch {}
-  }
-  return undefined;
-}
-
 export function buildArguments(input: MediaInput, directory: string, maxDuration = 600, maxFilesize = '200M'): string[] {
   const ffmpeg = resolveTool('ffmpeg');
   const audioBitrate = input.audioQuality ? input.audioQuality.toUpperCase() : '128K';
-  const cookiesPath = resolveCookiesPath();
   return [
     '--ignore-config', '--no-playlist', '--no-progress', '--no-warnings',
     '--no-cache-dir', '--no-remote-components', '--js-runtimes', `node:${process.execPath}`,
-    '--user-agent', DEFAULT_USER_AGENT,
-    '--extractor-args', 'youtube:player_client=android,web',
-    ...(cookiesPath ? ['--cookies', cookiesPath] : []),
     '--socket-timeout', '20', '--retries', '2', '--fragment-retries', '2',
     '--max-filesize', maxFilesize, '--match-filters', `!is_live & duration <= ${maxDuration}`,
     ...(ffmpeg !== 'ffmpeg' ? ['--ffmpeg-location', ffmpeg] : []),
@@ -119,7 +94,6 @@ export class MediaService {
   async extract(url: string, platform: string, signal?: AbortSignal): Promise<ExtractedMedia> {
     if (this.config.extractRunner) return this.config.extractRunner(url, platform, signal);
     await this.ensureTools();
-    const cookiesPath = resolveCookiesPath();
     return new Promise<ExtractedMedia>((resolve, reject) => {
       if (signal?.aborted) return reject(new Error('Operation aborted.'));
       const child = spawn(resolveTool('yt-dlp'), [
@@ -127,9 +101,6 @@ export class MediaService {
         '--ignore-errors',
         '--no-cache-dir', '--no-remote-components',
         '--js-runtimes', `node:${process.execPath}`,
-        '--user-agent', DEFAULT_USER_AGENT,
-        '--extractor-args', 'youtube:player_client=android,web',
-        ...(cookiesPath ? ['--cookies', cookiesPath] : []),
         '--socket-timeout', '15',
         '-J',
         '--', url,
